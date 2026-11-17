@@ -1,0 +1,6 @@
+{
+  "name": "Ransomware Detection & Response System (RDRS)",
+  "description": "Defensive cybersecurity system for real-time file monitoring, Shannon entropy calculation, threat scoring, incident response, REST API, interactive sandbox simulator, and live security dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  rdrs-app:
+    build: .
+    container_name: rdrs-unified-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./quarantine:/app/quarantine
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PYTHON_PATH=python3
+      - PYTHONPATH=/app
+      - SIMULATION_MODE=true
+    restart: unless-stopped

@@ -1,0 +1,49 @@
+# Ransomware Detection & Response System (RDRS) Configuration
+
+system:
+  environment: "development"
+  debug: true
+  simulation_mode: true  # SAFETY RULE: Always true by default (no actual process killing)
+
+monitoring:
+  watch_paths:
+    - "./data/sandbox"
+  ignored_extensions:
+    - ".tmp"
+    - ".log"
+    - ".bak"
+  ignored_directories:
+    - ".git"
+    - "__pycache__"
+    - "node_modules"
+  sample_size_bytes: 65536  # 64KB sample size for fast entropy calculation
+
+detection:
+  time_window_seconds: 60      # Sliding time window length
+  entropy_threshold: 7.2       # Shannon entropy threshold for suspicious encryption (> 7.2 bits/byte)
+  rapid_mods_threshold: 15     # Number of modifications in window to trigger rapid mod signal
+  mass_rename_threshold: 8     # Number of file renames in window to trigger mass rename signal
+  cpu_spike_threshold: 75.0    # CPU percentage threshold for suspicious process
+
+threat_scoring:
+  weights:
+    rapid_encryption: 40
+    mass_rename: 30
+    high_entropy: 25
+    cpu_spike: 15
+    unknown_program: 10
+  severity_levels:
+    normal: [0, 40]
+    warning: [40, 70]
+    critical: [70, 100]
+
+quarantine:
+  storage_dir: "./quarantine"
+  preserve_metadata: true
+
+database:
+  db_url: "sqlite:///./data/rdrs.db"
+
+api:
+  host: "0.0.0.0"
+  port: 8000
