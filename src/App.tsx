@@ -85,8 +85,7 @@ export default function App() {
   const [apiConsoleOutput, setApiConsoleOutput] = useState<any>(null);
 
   useEffect(() => {
-    fetchBackendData();
-    calculateEntropy(calcInput);
+
     
 
     // Connect Server-Sent Events (SSE) for zero-reload real-time dashboard pushes

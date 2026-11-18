@@ -1,0 +1,31 @@
+﻿# Node.js
+node_modules/
+dist/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime files
+logs/
+*.log
+data/*
+!data/.gitkeep
+quarantine/*
+!quarantine/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Test and operating-system files
+.pytest_cache/
+.coverage
+Thumbs.db
+.DS_Store

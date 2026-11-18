@@ -186,19 +186,24 @@ async function startServer() {
     res.setHeader('Connection', 'keep-alive');
 
     let clientClosed = false;
+    let updateInProgress = false;
 
     const sendUpdate = async () => {
       if (clientClosed || shuttingDownFlag.value || res.writableEnded || res.destroyed) {
         return;
       }
+            if (updateInProgress) {
+        return;
+      }
+      updateInProgress = true;
       try {
-        const [status, alerts, events, incident, history] = await Promise.all([
-          callPythonBridge('status'),
-          callPythonBridge('alerts'),
-          callPythonBridge('events'),
-          callPythonBridge('incidents'),
-          callPythonBridge('history')
-        ]);
+        const dashboard = await callPythonBridge('dashboard');
+        const status = dashboard?.status;
+        const alerts = { alerts: dashboard?.alerts ?? [] };
+        const events = { events: dashboard?.events ?? [] };
+        const incident = { incident: dashboard?.incident ?? null };
+        const history = { history: dashboard?.history ?? [] };
+
         if (clientClosed || shuttingDownFlag.value || res.writableEnded || res.destroyed) {
           return;
         }
@@ -213,9 +218,12 @@ async function startServer() {
       } catch (err) {
         console.error(`[${new Date().toISOString()}] SSE Stream error:`, err);
       }
+      finally {
+        updateInProgress = false;
+      }
     };
 
-    const interval = setInterval(sendUpdate, 3000);
+    const interval = setInterval(sendUpdate, 10000);
 
     req.on('close', () => {
       clientClosed = true;

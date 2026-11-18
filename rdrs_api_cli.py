@@ -36,7 +36,18 @@ def main():
     action = sys.argv[1]
 
     try:
-        if action == "health":
+
+        if action == "dashboard":
+            payload = {
+                "status": get_real_system_status(),
+                "alerts": get_real_alerts(),
+                "events": get_real_events(),
+                "incident": get_real_incidents(),
+                "history": get_real_threat_history()
+            }
+            print(json.dumps(payload))
+
+        elif action == "health":
             print(json.dumps(get_real_health()))
 
         elif action == "status":

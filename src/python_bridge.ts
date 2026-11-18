@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import path from 'node:path';
 
 export const ALLOWED_ACTIONS = [
+  'dashboard',
   'health',
   'status',
   'alerts',
