@@ -119,53 +119,29 @@ export default function App() {
 
   const entropyRequestId = React.useRef(0);
 
+
   const fetchBackendData = async () => {
     try {
-      const [statusRes, alertsRes, eventsRes, incRes, historyRes] = await Promise.all([
-        fetch('/api/status'),
-        fetch(`/api/alerts?severity=${alertSeverityFilter}`),
-        fetch(`/api/events?type=${eventTypeFilter}&search=${encodeURIComponent(eventSearch)}`),
-        fetch('/api/incidents'),
-        fetch('/api/history')
-      ]);
+      const params = new URLSearchParams({
+        severity: alertSeverityFilter,
+        type: eventTypeFilter,
+        search: eventSearch
+      });
 
-      const statusData = await statusRes.json().catch(() => null);
-      if (!statusRes.ok || statusData?.error) {
-        throw new Error(statusData?.error || `Status endpoint returned HTTP ${statusRes.status}`);
-      }
-      setSystemState(statusData);
+      const res = await fetch(`/api/dashboard?${params.toString()}`);
+      const data = await res.json().catch(() => null);
 
-      const endpointErrors: string[] = [];
-
-      const alertsData = await alertsRes.json().catch(() => null);
-      if (alertsRes.ok && !alertsData?.error) {
-        setAlertsList(alertsData?.alerts || []);
-      } else {
-        endpointErrors.push(alertsData?.error || `alerts HTTP ${alertsRes.status}`);
+      if (!res.ok || data?.error) {
+        throw new Error(data?.error || `Dashboard endpoint returned HTTP ${res.status}`);
       }
 
-      const eventsData = await eventsRes.json().catch(() => null);
-      if (eventsRes.ok && !eventsData?.error) {
-        setEventsList(eventsData?.events || []);
-      } else {
-        endpointErrors.push(eventsData?.error || `events HTTP ${eventsRes.status}`);
-      }
+      setSystemState(data.status);
+      setAlertsList(data.alerts || []);
+      setEventsList(data.events || []);
+      setIncidentData(data.incident);
+      setThreatHistory(data.history || []);
+      setBackendError(null);
 
-      const incData = await incRes.json().catch(() => null);
-      if (incRes.ok && !incData?.error) {
-        setIncidentData(incData?.incident);
-      } else {
-        endpointErrors.push(incData?.error || `incidents HTTP ${incRes.status}`);
-      }
-
-      const historyData = await historyRes.json().catch(() => null);
-      if (historyRes.ok && !historyData?.error) {
-        setThreatHistory(historyData?.history || []);
-      } else {
-        endpointErrors.push(historyData?.error || `history HTTP ${historyRes.status}`);
-      }
-
-      setBackendError(endpointErrors.length ? `Partial sync error: ${endpointErrors.join('; ')}` : null);
     } catch (e: any) {
       console.error(e);
       setBackendError(e?.message || 'Unable to synchronize with RDRS backend');

@@ -111,6 +111,15 @@ async function startServer() {
     res.status(httpStatus).json(data);
   }));
 
+  app.get('/api/dashboard', asyncHandler(async (req, res) => {
+    const severity = typeof req.query.severity === 'string' ? req.query.severity : '';
+    const type = typeof req.query.type === 'string' ? req.query.type : '';
+    const search = typeof req.query.search === 'string' ? req.query.search : '';
+
+    const data = await callPythonBridge('dashboard', [severity, type, search]);
+    sendBridgeResponse(res, data);
+  }));
+
   app.get('/api/status', asyncHandler(async (_req, res) => {
     const data = await callPythonBridge('status');
     sendBridgeResponse(res, data);

@@ -38,10 +38,14 @@ def main():
     try:
 
         if action == "dashboard":
+            sev = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] not in ("undefined", "") else None
+            evt_type = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] not in ("undefined", "") else None
+            search_txt = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] not in ("undefined", "") else None
+
             payload = {
                 "status": get_real_system_status(),
-                "alerts": get_real_alerts(),
-                "events": get_real_events(),
+                "alerts": get_real_alerts(severity_filter=sev),
+                "events": get_real_events(event_type_filter=evt_type, search=search_txt),
                 "incident": get_real_incidents(),
                 "history": get_real_threat_history()
             }
