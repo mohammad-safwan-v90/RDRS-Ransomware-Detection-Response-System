@@ -13,15 +13,17 @@ import tempfile
 import sqlite3
 import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from datetime import datetime
 
 sys.path.insert(0, os.path.abspath("."))
+import rdrs_daemon
 
+from rdrs_daemon import acquire_process_lock, release_process_lock, LOCK_FILE, STATUS_FILE
 from rdrs.app.database.db import get_db_connection, init_db
 from rdrs.app.detectors.file_monitor import RDRSFileEventHandler, Observer, BaseEventHandler
 from rdrs.app.api.main import get_real_system_status, check_daemon_health
-from rdrs_daemon import acquire_process_lock, release_process_lock, LOCK_FILE, STATUS_FILE
+
 
 
 class IsolatedBaseTest(unittest.TestCase):
@@ -474,6 +476,177 @@ class TestMonitoredDirectoryFailures(IsolatedBaseTest):
                         p.stderr.close()
 
 
+
+
+class TestSimulationEventFiltering(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="rdrs_sim_filter_")
+        self.sandbox_dir = os.path.join(self.temp_dir, "sandbox")
+        os.makedirs(self.sandbox_dir)
+
+        self.marker_path = os.path.join(
+            self.temp_dir,
+            ".rdrs_simulation_in_progress"
+        )
+
+        self.sandbox_patch = patch.object(
+            rdrs_daemon,
+            "SANDBOX_DIR",
+            self.sandbox_dir
+        )
+        self.sandbox_patch.start()
+
+    def tearDown(self):
+        self.sandbox_patch.stop()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _write_marker(self, paths, expires_at):
+        with open(self.marker_path, "w", encoding="utf-8") as marker:
+            json.dump({
+                "paths": paths,
+                "expires_at": expires_at
+            }, marker)
+
+    def test_matching_simulation_file_is_filtered(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+
+        self._write_marker([simulated_file], time.time() + 60)
+
+        self.assertTrue(
+            rdrs_daemon._is_api_simulation_event({
+                "file_path": simulated_file
+            })
+        )
+
+    def test_unrelated_file_is_not_filtered(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+        unrelated_file = os.path.join(
+            self.sandbox_dir,
+            "normal_document.txt"
+        )
+
+        self._write_marker([simulated_file], time.time() + 60)
+
+        self.assertFalse(
+            rdrs_daemon._is_api_simulation_event({
+                "file_path": unrelated_file
+            })
+        )
+
+    def test_expired_marker_does_not_filter_file(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+
+        self._write_marker([simulated_file], time.time() - 10)
+
+        self.assertFalse(
+            rdrs_daemon._is_api_simulation_event({
+                "file_path": simulated_file
+            })
+        )
+
+    def test_missing_marker_does_not_filter_file(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+
+        self.assertFalse(
+            rdrs_daemon._is_api_simulation_event({
+                "file_path": simulated_file
+            })
+        )
+
+    def test_destination_path_is_also_checked(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+
+        self._write_marker([simulated_file], time.time() + 60)
+
+        self.assertTrue(
+            rdrs_daemon._is_api_simulation_event({
+                "file_path": os.path.join(self.sandbox_dir, "old_name.txt"),
+                "dest_path": simulated_file
+            })
+        )
+    def test_callback_skips_scoring_for_simulation_file(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+        self._write_marker([simulated_file], time.time() + 60)
+
+        isolated_window = type(rdrs_daemon._event_window)()
+
+        with patch.object(rdrs_daemon, "_event_window", isolated_window), \
+             patch.object(rdrs_daemon, "_get_engine") as get_engine:
+
+            rdrs_daemon.event_callback({
+                "event_type": "modified",
+                "file_path": simulated_file,
+                "timestamp": datetime.now().isoformat()
+            })
+
+        get_engine.assert_not_called()
+        self.assertEqual(len(isolated_window), 0)
+
+    def test_callback_scores_unrelated_events_during_simulation(self):
+        simulated_file = os.path.join(
+            self.sandbox_dir,
+            "financial_data_0.locked"
+        )
+        self._write_marker([simulated_file], time.time() + 60)
+
+        isolated_window = type(rdrs_daemon._event_window)()
+        timestamp = datetime.now().isoformat()
+
+        for i in range(14):
+            isolated_window.append({
+                "event_type": "modified",
+                "file_path": os.path.join(
+                    self.sandbox_dir,
+                    f"unrelated_{i}.txt"
+                ),
+                "timestamp": timestamp
+            })
+
+        mock_engine = Mock()
+        mock_engine.analyze_events.return_value = {
+            "severity": "Normal",
+            "threat_score": 0
+        }
+
+        with patch.object(rdrs_daemon, "_event_window", isolated_window), \
+             patch.object(rdrs_daemon, "_last_alert_ts", 0), \
+             patch.object(rdrs_daemon, "_last_alert_severity", None), \
+             patch.object(
+                 rdrs_daemon,
+                 "_get_engine",
+                 return_value=(mock_engine, Mock())
+             ):
+
+            rdrs_daemon.event_callback({
+                "event_type": "modified",
+                "file_path": os.path.join(
+                    self.sandbox_dir,
+                    "unrelated_final.txt"
+                ),
+                "timestamp": datetime.now().isoformat()
+            })
+
+        mock_engine.analyze_events.assert_called_once()
+        scored_events = mock_engine.analyze_events.call_args.args[0]
+        self.assertEqual(len(scored_events), 15)
+
 if __name__ == "__main__":
     unittest.main()
-

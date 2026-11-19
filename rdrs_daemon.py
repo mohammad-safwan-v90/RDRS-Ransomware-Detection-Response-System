@@ -136,11 +136,64 @@ def update_status_file(is_monitoring: bool, pid: int = None, observer_alive: boo
     except Exception as ex:
         logger.error(f"[Daemon] Failed writing status file: {ex}")
 
+def _is_api_simulation_event(event_data: dict) -> bool:
+    simulation_flag_path = os.path.join(
+        os.path.dirname(os.path.abspath(SANDBOX_DIR)),
+        ".rdrs_simulation_in_progress"
+    )
+
+    try:
+        with open(simulation_flag_path, "r", encoding="utf-8") as marker_file:
+            marker = json.load(marker_file)
+    except FileNotFoundError:
+        return False
+    except (OSError, json.JSONDecodeError) as ex:
+        logger.warning(f"[Daemon] Could not read simulation marker: {ex}")
+        return False
+
+    if not isinstance(marker, dict):
+        return False
+
+    try:
+        if time.time() > float(marker.get("expires_at", 0)):
+            return False
+    except (TypeError, ValueError):
+        return False
+
+    marked_paths = marker.get("paths", [])
+    if not isinstance(marked_paths, list):
+        return False
+
+    normalized_paths = {
+        os.path.normcase(os.path.realpath(path))
+        for path in marked_paths
+        if isinstance(path, str) and path
+    }
+
+    event_paths = [
+        event_data.get("file_path"),
+        event_data.get("dest_path")
+    ]
+
+    return any(
+        os.path.normcase(os.path.realpath(path)) in normalized_paths
+        for path in event_paths
+        if isinstance(path, str) and path
+    )
 
 def event_callback(event_data: dict):
     global last_event_timestamp, _last_alert_ts, _last_alert_severity
     last_event_timestamp = datetime.now().isoformat()
     logger.info(f"[Daemon Event] {event_data.get('event_type')}: {event_data.get('file_path')}")
+
+    # Skip daemon scoring while the API runs a controlled simulation.
+    # File events are still persisted by the file monitor.
+    if _is_api_simulation_event(event_data):
+        logger.info(
+            f"[Daemon] Skipping duplicate simulation event: "
+            f"{event_data.get('file_path')}"
+        )
+        return
 
     with _window_lock:
         now = datetime.now()

@@ -344,8 +344,47 @@ def update_incident_status(incident_id: str, new_status: str) -> Dict[str, Any]:
         return {"error": f"Incident '{incident_id}' not found", "status_code": 404}
     return {"status": "success", "incident_id": incident_id, "new_status": new_status}
 
-
 def run_sandbox_simulation(attack_type: str) -> Dict[str, Any]:
+    if attack_type != "full_simulation":
+        return _run_sandbox_simulation(attack_type)
+
+    sandbox_dir = config.watch_paths[0] if config.watch_paths else "./data/sandbox"
+    simulation_flag_path = os.path.join(
+        os.path.dirname(os.path.abspath(sandbox_dir)),
+        ".rdrs_simulation_in_progress"
+    )
+
+    marker_data = {
+        "paths": [
+            os.path.realpath(
+                os.path.abspath(
+                    os.path.join(sandbox_dir, f"financial_data_{i}.locked")
+                )
+            )
+            for i in range(15)
+        ],
+        "expires_at": time.time() + 120
+    }
+
+    with open(simulation_flag_path, "w", encoding="utf-8") as marker:
+        json.dump(marker_data, marker)
+
+    try:
+        return _run_sandbox_simulation(attack_type)
+    finally:
+        marker_data["expires_at"] = time.time() + 30
+        temp_marker_path = simulation_flag_path + ".tmp"
+
+        try:
+            with open(temp_marker_path, "w", encoding="utf-8") as marker:
+                json.dump(marker_data, marker)
+
+            os.replace(temp_marker_path, simulation_flag_path)
+
+        except OSError as ex:
+            logger.warning(f"Could not update simulation marker: {ex}")
+
+def _run_sandbox_simulation(attack_type: str) -> Dict[str, Any]:
     sandbox_dir = config.watch_paths[0] if config.watch_paths else "./data/sandbox"
     os.makedirs(sandbox_dir, exist_ok=True)
     now_str = datetime.now().isoformat()
