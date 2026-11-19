@@ -225,6 +225,26 @@ The demonstrated full-simulation response was:
 - Incident: `INC-20261116-0030`
 - Affected files: `15`
 
+#### Latest live verification — 19 November 2026
+
+After deploying commit `87cf8f9`, the full ransomware simulation was
+successfully tested on the live Render deployment.
+
+- API status: `success`
+- Threat score: `90/100`
+- Threat level: `Critical`
+- Active alerts: `1`
+- Simulator event count: `15`
+- Mean entropy: `7.91` bits/byte
+- Incident ID: `INC-20261119-0001`
+- Affected files: `15`
+- Daemon monitoring: `Healthy`
+
+The dashboard confirmed exactly one Critical alert and one incident,
+with the incident status `Contained (Simulation)`.
+
+The duplicate daemon alert was not reproduced during this verification.
+
 The dashboard's SQLite event count can be higher than the simulator's event count because the Watchdog daemon also records filesystem activity generated during the simulation.
 
 ### Reset after testing
